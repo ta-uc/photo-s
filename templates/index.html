@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Pics</title>
+  <link rel="icon" type="image/png" href="/static/icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-180x180.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style type="text/css">
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: whitesmoke;
+      -webkit-appearance: none;
+    }
+
+    h1 {
+      font-size: 2em;
+      background: white;
+      padding: 5px 0 5px 0;
+      border-bottom: solid 2px;
+    }
+
+    header {
+      width: 100%;
+      text-align: center;
+      position: sticky;
+      top: 0;
+    }
+
+    ul {
+      background: white;
+      overflow: hidden;
+      width: 100vw;
+      padding: 5px 0px 5px 0px;
+      position: fixed;
+      bottom: 0;
+      border-top: solid 0.8px #eee;
+    }
+
+    li {
+      width: 50%;
+      height: 100%;
+      padding: 1px;
+      font-size: 1.5em;
+      text-align: center;
+      float: left;
+      list-style-type: none;
+    }
+
+    label>input {
+      display: none;
+    }
+
+    @media screen and (max-width:450px) {
+      .thubm {
+        width: calc(100%/3);
+        height: calc(100vw/3);
+        object-fit: cover;
+        vertical-align: bottom;
+      }
+
+      .space {
+        display: none;
+      }
+    }
+
+    @media screen and (min-width:451px) {
+      .thubm {
+        width: calc(100%/5);
+        height: calc(100vw/5);
+        object-fit: cover;
+        vertical-align: bottom;
+      }
+
+      .space {
+        width: 0;
+        height: 100vh;
+        float: left;
+      }
+    }
+
+    #preview_image,
+    #view_image,
+    #preview_camera_image {
+      height: 100vh;
+      display: none;
+    }
+
+
+    .send {
+      /* display: none; */
+      font-size: 7vw;
+      position: fixed;
+      top: 80%;
+      left: 55%;
+    }
+
+    .cancel {
+      /* display: none; */
+      font-size: 7vw;
+      position: fixed;
+      top: 80%;
+      left: 25%;
+    }
+
+    .back {
+      font-size: 25pt;
+      position: fixed;
+      top: 5%;
+      left: 80%;
+    }
+
+    #new {
+      display: none;
+      font-size: 25pt;
+      position: fixed;
+      top: 5%;
+      left: 75%;
+    }
+
+    #shutter {
+      width: 17vw;
+      height: 17vw;
+      font-size: 15vw;
+      position: fixed;
+      top: 80%;
+      left: 40%;
+      border-radius: 50%;
+    }
+
+    #thubm_box,
+    #canvas_wrap {
+      font-size: 0;
+    }
+
+    #flip_camera {
+      font-size: 20pt;
+      position: fixed;
+      top: 83%;
+      left: 80%;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div id="index">
+      <header>
+        <h1>Pics</h1>
+      </header>
+      <div id="main">
+        <div id="thubm_box">
+          {% for file in files -%}
+          <img class="thubm" src="/images/{{file['file_name']}}_t" alt="image">
+          {%- endfor %}
+        </div>
+        <nav id="navbar">
+          <ul>
+            <label for="photoSelect">
+              <li>📄</li>
+              <input type="file" name="photoSelect" id="photoSelect" accept="image/png, image/jpeg">
+            </label>
+            <li id="camera">📷</li>
+          </ul>
+        </nav>
+      </div>
+      <div style="height: 50px;"></div>
+    </div>
+    <div id="canvas_wrap">
+      <div id="preview_image">
+        <div class="space"></div>
+        <canvas id="canvas_pre"></canvas>
+        <button class="back">❌</button>
+        <button class="cancel confirm_button">　❌　</button>
+        <button class="send confirm_button">　⭕　</button>
+      </div>
+      <div id="preview_camera_image">
+        <video id="video" autoplay playsinline width="0.1" height="0.1"></video>
+        <div class="space"></div>
+        <canvas id="canvas_camera_pre"></canvas>
+        <button class="back">❌</button>
+        <button id="new">NEW</button>
+        <button id="shutter">　</button>
+        <button class="cancel confirm_button">　❌　</button>
+        <button class="send confirm_button">　⭕　</button>
+        <button id="flip_camera">↻</button>
+      </div>
+      <div id="view_image">
+        <div class="space"></div>
+        <canvas id="canvas_view"></canvas>
+        <button class="back">❌</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const file = document.getElementById("photoSelect");
+    const thubm_box = document.getElementById("thubm_box");
+    const videoElm = document.getElementById("video");
+    const isIOS = /iP(hone|(o|a)d)/.test(navigator.userAgent);
+    const index_page = document.getElementById("index");
+    const preview_page = document.getElementById("preview_image");
+    const preview_camera_page = document.getElementById("preview_camera_image");
+    const view_page = document.getElementById("view_image");
+    const new_btn = document.getElementById("new");
+    const shutter_btn = document.getElementById("shutter");
+    const flip_camera_btn = document.getElementById("flip_camera");
+    const confirm_buttons = Array.from(document.getElementsByClassName("confirm_button"));
+    const back_buttons = Array.from(document.getElementsByClassName("back"));
+    let thubms = document.getElementsByClassName("thubm");
+    let intervId, animationId;
+    let scrlY;
+    let front = false;
+    let images = [];
+    if (location.protocol === "https:") {
+      ws = new WebSocket("wss://" + window.document.location.host + "/ws-r");
+    } else if (location.protocol === "http:") {
+      ws = new WebSocket("ws://" + window.document.location.host + "/ws-r");
+    }
+
+
+    const returnToIndex = function () {
+      stopCameraPreview();
+      index_page.style.display = "inline";
+      preview_page.style.display = "none";
+      view_page.style.display = "none";
+      preview_camera_page.style.display = "none";
+      window.scroll(0, scrlY);
+    }
+
+    const setCanvasSize = function () {
+      canvasHeight = window.innerHeight;
+      canvasWidth = window.innerWidth;
+      if (canvasHeight < canvasWidth) {
+        canvasWidth = canvasHeight * 0.56;
+        Array.from(document.getElementsByClassName("space")).forEach((element) => {
+          element.style.width = (window.innerWidth - canvasWidth) / 2 + "px";
+        });
+      }
+    }
+
+    const stopCameraPreview = function () {
+      cancelAnimationFrame(animationId);
+      let stream = videoElm.srcObject;
+      if (stream) {
+        let tracks = stream.getTracks();
+        tracks.forEach(function (track) {
+          track.stop();
+        });
+        videoElm.srcObject = null;
+      }
+    }
+
+    const confirmCameraImage = function () {
+      stopCameraPreview();
+      new_btn.style.display = "inline";
+      shutter_btn.style.display = "none";
+      flip_camera_btn.style.display = "none";
+      confirm_buttons.forEach((element) => {
+        element.style.display = "inline";
+      });
+      back_buttons.forEach((element) => {
+        element.style.display = "none";
+      });
+    }
+
+    const previewCameraImage = function () {
+      let media = {
+        audio: false,
+        video: {
+          facingMode: (front ? "user" : "environment")
+        }
+      };
+      navigator.mediaDevices.getUserMedia(media).then(
+        function (stream) {
+          videoElm.srcObject = stream;
+        }
+      ).catch(
+        function (err) {
+          window.alert("カメラの使用が許可されませんでした");
+          returnToIndex();
+          return;
+        }
+      );
+      previewImage("canvas_camera_pre", "preview_camera_image");
+    }
+
+    const previewImage = function (canvas_name, page) {
+      scrlY = window.pageYOffset;
+      setCanvasSize();
+      index_page.style.display = "none";
+      document.getElementById(page).style.display = "inline";
+      canvas = document.getElementById(canvas_name);
+      ctx = canvas.getContext("2d");
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      ctx.imageSmoothingEnabled = true;
+      ctx.fillStyle = "#000";//Black
+      ctx.font = "9vw serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Loading", canvasWidth / 2, canvasHeight / 2);
+      if (page === "preview_image") {
+        view_page.style.display = "none";
+        preview_camera_page.style.display = "none";
+        back_buttons.forEach((element) => {
+          element.style.display = "none";
+        });
+        confirm_buttons.forEach((element) => {
+          element.style.display = "inline";
+        });
+        loadImg();
+      } else if (page === "view_image") {
+        preview_page.style.display = "none";
+        preview_camera_page.style.display = "none";
+        back_buttons.forEach((element) => {
+          element.style.display = "inline";
+        });
+        canvasDraw();
+      } else if (page === "preview_camera_image") {
+        preview_page.style.display = "none";
+        view_page.style.display = "none";
+        new_btn.style.display = "none";
+        shutter_btn.style.display = "inline";
+        flip_camera_btn.style.display = "inline";
+        back_buttons.forEach((element) => {
+          element.style.display = "inline";
+        });
+        confirm_buttons.forEach((element) => {
+          element.style.display = "none";
+        });
+        canvasCameraDraw();
+      }
+    }
+
+    const loadImg = function () {
+      let imgData = file.files[0];
+      let reader = new FileReader();
+      reader.onload = function () {
+        ImgSrc = reader.result;
+        canvasDraw();
+      }
+      if (imgData) {
+        reader.readAsDataURL(imgData);
+      } else {
+        returnToIndex();
+      }
+    }
+
+    const canvasDraw = function () {
+      let img = new Image();
+      img.src = ImgSrc;
+      ctx.fillStyle = "#FFF";//White
+      img.onload = function () {
+        if (img.width >= img.height) {
+          let srcClipHeight = img.height;
+          let srcClipWidth = srcClipHeight * canvasWidth / canvasHeight;
+          let srcStartX = img.width / 2 - srcClipWidth / 2;
+          let srcStartY = 0;
+          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          ctx.drawImage(img, srcStartX, srcStartY, srcClipWidth, srcClipHeight, 0, 0, canvasWidth, canvasHeight);
+        } else {
+          let srcClipWidth = img.width;
+          let srcClipHeight = srcClipWidth * canvasHeight / canvasWidth;
+          let srcStartX = 0;
+          let srcStartY = img.height / 2 - srcClipHeight / 2;
+          ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+          ctx.drawImage(img, srcStartX, srcStartY, srcClipWidth, srcClipHeight, 0, 0, canvasWidth, canvasHeight);
+        }
+      }
+    }
+
+    const canvasCameraDraw = function () {
+      ctx.fillStyle = "#000";//Black
+      ctx.fillText("Loading", canvasWidth / 2, canvasHeight / 2);
+      videoElm.addEventListener("loadedmetadata", function (e) {
+        if (videoElm.videoWidth >= videoElm.videoHeight) {
+          var srcClipHeight = videoElm.videoHeight;
+          var srcClipWidth = srcClipHeight * canvasWidth / canvasHeight;
+          var srcStartX = videoElm.videoWidth / 2 - srcClipWidth / 2;
+          var srcStartY = 0;
+        } else {
+          var srcClipWidth = videoElm.videoWidth;
+          var srcClipHeight = srcClipWidth * canvasHeight / canvasWidth;
+          var srcStartX = 0;
+          var srcStartY = videoElm.videoHeight / 2 - srcClipHeight / 2;
+        }
+        ctx.fillStyle = "#FFF";//White
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        if (isIOS) {
+          var draw = function () {
+            ctx.drawImage(videoElm, 0, 0, canvasWidth, canvasHeight);
+            animationId = requestAnimationFrame(draw);
+          }
+        } else {
+          var draw = function () {
+            ctx.drawImage(videoElm, srcStartX, srcStartY, srcClipWidth, srcClipHeight, 0, 0, canvasWidth,
+              canvasHeight);
+            animationId = requestAnimationFrame(draw);
+          }
+        }
+        draw();
+      });
+    }
+
+    const uploadImage = function () {
+      let dataURL = canvas.toDataURL("image/jpeg");
+      let bin = atob(dataURL.split(',')[1]);
+      let buffer = new Uint8Array(bin.length);
+      let data = new FormData();
+      let conn = new XMLHttpRequest();
+      ctx.fillStyle = "#000";
+      for (let i = 0; i < bin.length; i++) {
+        buffer[i] = bin.charCodeAt(i);
+      }
+      let imgBlob = new Blob([buffer.buffer], {
+        type: "image/jpeg"
+      });
+      ctx.font = "9vw serif";
+      ctx.textAlign = "center";
+      data.append("imgData", imgBlob);
+      conn.onreadystatechange = function () {
+        confirm_buttons.forEach((element) => {
+          element.style.display = "none";
+        });
+        new_btn.style.display = "none";
+        if (conn.readyState == 4) {
+          if (conn.status == 200) {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.fillText("Done", canvasWidth / 2, canvasHeight / 2);
+            window.location.href = "/";
+          } else {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            ctx.fillText("Failed", canvasWidth / 2, canvasHeight / 2);
+            window.location.href = "/";
+          }
+        } else {
+          ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+          ctx.fillText("Sending", canvasWidth / 2, canvasHeight / 2);
+        }
+      }
+      conn.open("POST", "upload", true);
+      conn.send(data);
+    }
+
+
+    const addFunc = function () {
+      Array.from(thubms).forEach((element) => {
+        element.addEventListener("click", (e) => {
+          ImgSrc = e.target.src.slice(0,-2);
+          previewImage("canvas_view", "view_image");
+        });
+        let origImg = new Image();
+        origImg.src = element.src.slice(0,-2);
+        images.push(origImg);
+      });
+    }
+
+    file.addEventListener("change", () => {
+      previewImage("canvas_pre", "preview_image");
+    }, false);
+
+    ws.addEventListener("close", e => {
+      clearInterval(intervId);
+    })
+
+    ws.addEventListener("open", e => {
+      intervId = setInterval(() => {
+        ws.send(thubms.length.toString(10))
+      }, 5000);
+    });
+
+    ws.addEventListener("message", message => {
+      let names = JSON.parse(message.data);
+      for (name of names) {
+        thubm_box.insertAdjacentHTML("afterbegin", '<img class="thubm" src="/images/' + name + '_t" alt="image">');
+        addFunc();
+      }
+    });
+
+    Array.from(document.getElementsByClassName("cancel")).forEach((element) => {
+      element.addEventListener("click", (e) => {
+        returnToIndex();
+      });
+    });
+    back_buttons.forEach((element) => {
+      element.addEventListener("click", (e) => {
+        returnToIndex();
+      });
+    });
+    Array.from(document.getElementsByClassName("send")).forEach((element) => {
+      element.addEventListener("click", (e) => {
+        uploadImage();
+      });
+    });
+
+    document.getElementById("camera").addEventListener("click", previewCameraImage, false);
+    view_page.addEventListener("click", returnToIndex, false);
+    shutter_btn.addEventListener("click", confirmCameraImage, false);
+    new_btn.addEventListener("click", previewCameraImage, false);
+    flip_camera_btn.onclick = function () {
+      front = !front;
+      stopCameraPreview();
+      previewCameraImage();
+    };
+    addFunc();
+  </script>
+
+</html>

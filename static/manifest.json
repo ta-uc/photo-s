@@ -1,0 +1,32 @@
+{
+  "name": "Pics",
+  "short_name": "Pics",
+  "theme_color": "#f99696",
+  "background_color": "#ffffff",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons":[
+    {
+      "src": "/static/128.png",
+      "type":"image/png",
+      "sizes": "128x128"
+    },
+    {
+      "src": "/static/144.png",
+      "type":"image/png",
+      "sizes": "144x144"
+    },
+    {
+      "src": "/static/192.png",
+      "type":"image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/512.png",
+      "type":"image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

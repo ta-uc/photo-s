@@ -28,9 +28,7 @@ def update(ws):
         try:
             list = imgdata.getFileList(int(ws.receive()))
             if not len(list) == 0:
-                t = []
-                for photo in list:
-                    t.append(photo.file_name)
+                t = [photo.file_name for photo in list]
                 msg = json.dumps(t)
                 ws.send(msg)
         except:
